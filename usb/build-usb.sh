@@ -25,6 +25,11 @@ lsblk "$DEV"
 read -r -p "Type ERASE to continue: " answer
 [ "$answer" = ERASE ] || die "aborted"
 
+# Unmount any partitions of the stick before writing to it
+for part in $(lsblk -lnpo NAME "$DEV" | tail -n +2); do
+  sudo umount "$part" 2>/dev/null || true
+done
+
 # Office user password: hashed here, never stored in the repo
 read -r -s -p "Password for the office user: " pw; echo
 read -r -s -p "Repeat it: " pw2; echo
