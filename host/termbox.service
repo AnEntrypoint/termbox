@@ -8,11 +8,15 @@ Requires=docker.service
 EnvironmentFile=/srv/termbox/env
 ExecStartPre=-/usr/bin/docker rm -f termbox
 ExecStartPre=/usr/bin/docker pull ghcr.io/anentrypoint/termbox:latest
+# Optional TURN relay for WebRTC behind symmetric NAT: set the SELKIES_*_TURN values in /srv/termbox/env to enable it.
 # --rm: the container's writable layer, including the desktop, is deleted when it stops.
 # Only /srv/termbox/claude is kept, through the bind mount.
 ExecStart=/usr/bin/docker run --rm --name termbox --hostname termbox \
   --shm-size 1g \
   -e PUID=1000 -e PGID=1000 -e TZ=${TZ} -e PASSWORD=${PASSWORD} \
+  -e SELKIES_ENABLE_CLOUDFLARE_TURN=${SELKIES_ENABLE_CLOUDFLARE_TURN} \
+  -e SELKIES_CLOUDFLARE_TURN_TOKEN_ID=${SELKIES_CLOUDFLARE_TURN_TOKEN_ID} \
+  -e SELKIES_CLOUDFLARE_TURN_API_TOKEN=${SELKIES_CLOUDFLARE_TURN_API_TOKEN} \
   -p 3000:80 -p 59000:59000/udp \
   -v /srv/termbox/claude:/config/.claude-shared \
   ghcr.io/anentrypoint/termbox:latest
