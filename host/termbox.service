@@ -1,0 +1,24 @@
+[Unit]
+Description=Termbox office desktop (container, wiped on every exit)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/srv/termbox/env
+ExecStartPre=-/usr/bin/docker rm -f termbox
+ExecStartPre=/usr/bin/docker pull ghcr.io/anentrypoint/termbox:latest
+# --rm: the container's writable layer, including the desktop, is deleted when it stops.
+# Only /srv/termbox/claude is kept, through the bind mount.
+ExecStart=/usr/bin/docker run --rm --name termbox --hostname termbox \
+  --shm-size 1g \
+  -e PUID=1000 -e PGID=1000 -e TZ=${TZ} -e PASSWORD=${PASSWORD} \
+  -p 3000:80 -p 59000:59000/udp \
+  -v /srv/termbox/claude:/config/.claude-shared \
+  ghcr.io/anentrypoint/termbox:latest
+ExecStop=/usr/bin/docker stop -t 20 termbox
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

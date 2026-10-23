@@ -40,4 +40,42 @@ ENV SELKIES_MODE=webrtc \
     SELKIES_WEBRTC_ICE_LITE=false \
     SELKIES_RTC_CONFIG_JSON=/etc/selkies/rtc.json
 
+# Office layer: Claude Code, freddie (agent harness) and gridcraft, baked in at build time.
+# Installed under /opt/office and linked into /usr/bin: the startup scripts replace /usr/local
+# with /config/usr/local, which would hide anything installed there.
+# Node 24 LTS from the official tarball, checksum-verified. The apt packages conflict with each other.
+ARG NODE_VERSION=24.22.1
+RUN cd /tmp \
+    && curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" \
+    && curl -fsSL -o SHASUMS256.txt "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" \
+    && grep " node-v${NODE_VERSION}-linux-x64.tar.gz\$" SHASUMS256.txt | sha256sum -c - \
+    && mkdir -p /opt/office/node \
+    && tar -xzf "node-v${NODE_VERSION}-linux-x64.tar.gz" -C /opt/office/node --strip-components=1 \
+    && rm -f "node-v${NODE_VERSION}-linux-x64.tar.gz" SHASUMS256.txt \
+    && ln -sf /opt/office/node/bin/node /usr/bin/node \
+    && ln -sf /opt/office/node/bin/npm /usr/bin/npm \
+    && ln -sf /opt/office/node/bin/npx /usr/bin/npx
+# OFFICE_REFRESH changes on every scheduled CI build, so the install layers below are rebuilt
+# and pick up the latest Claude Code and gridcraft release.
+ARG OFFICE_REFRESH=0
+RUN echo "office refresh ${OFFICE_REFRESH}" \
+    && npm install --prefix /opt/office @anthropic-ai/claude-code pnpm@11.7.0 \
+    && ln -sf /opt/office/node_modules/.bin/claude /usr/bin/claude \
+    && ln -sf /opt/office/node_modules/.bin/pnpm /usr/bin/pnpm
+RUN git clone --depth 1 https://github.com/AnEntrypoint/freddie /opt/office/freddie \
+    && cd /opt/office/freddie \
+    && pnpm install --frozen-lockfile \
+    && node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22||(a===22&&b>=19)?0:1)'
+RUN url=$(curl -fsSL https://api.github.com/repos/storytold/gridcraft/releases/latest \
+        | jq -r '.assets[] | select(.name | test("linux-x86_64[.]deb$")) | .browser_download_url') \
+    && curl -fsSL -o /tmp/gridcraft.deb "$url" \
+    && apt-get update && apt-get install -y /tmp/gridcraft.deb \
+    && rm -rf /tmp/gridcraft.deb /var/lib/apt/lists/*
+
+# Claude Code updates come from a new image, not in-place, so every box stays on the same build.
+ENV DISABLE_AUTOUPDATER=1
+
+COPY docker/office/office-setup.sh /custom-cont-init.d/98-office-setup.sh
+RUN chmod +x /custom-cont-init.d/98-office-setup.sh
+
 EXPOSE 80 443 59000/udp

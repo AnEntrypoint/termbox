@@ -1,0 +1,6 @@
+[Unit]
+Description=Pull the latest termbox image and restart the desktop if it changed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/termbox-update

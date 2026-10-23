@@ -1,0 +1,36 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  timezone: __TIMEZONE__
+  identity:
+    hostname: termbox
+    username: office
+    password: "__PASSWORD_HASH__"
+  ssh:
+    install-server: true
+    allow-pw: true
+  # 256 GB SSD: 1 GB EFI, 80 GB root, the rest for Docker images and the shared Claude login (/srv).
+  storage:
+    config:
+      - {type: disk, id: disk0, match: {size: largest}, ptable: gpt, wipe: superblock-recursive, preserve: false, grub_device: true}
+      - {type: partition, id: efi-part, device: disk0, size: 1G, flag: boot, grub_device: true}
+      - {type: format, id: efi-fmt, volume: efi-part, fstype: fat32}
+      - {type: mount, id: efi-mount, device: efi-fmt, path: /boot/efi}
+      - {type: partition, id: root-part, device: disk0, size: 80G}
+      - {type: format, id: root-fmt, volume: root-part, fstype: ext4}
+      - {type: mount, id: root-mount, device: root-fmt, path: /}
+      - {type: partition, id: srv-part, device: disk0, size: -1}
+      - {type: format, id: srv-fmt, volume: srv-part, fstype: ext4}
+      - {type: mount, id: srv-mount, device: srv-fmt, path: /srv}
+  packages:
+    - docker.io
+    - curl
+    - jq
+    - openssl
+  updates: security
+  late-commands:
+    - "curtin in-target --target=/target -- env TERMBOX_REF=__TERMBOX_REF__ TERMBOX_TZ=__TIMEZONE__ bash -c 'curl -fsSL https://raw.githubusercontent.com/AnEntrypoint/termbox/__TERMBOX_REF__/host/install-host.sh | bash'"
+  shutdown: reboot
